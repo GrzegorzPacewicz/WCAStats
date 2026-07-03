@@ -1,6 +1,6 @@
 # WCA Stats
 
-**Live:** https://wcastats.g-pacewicz.workers.dev/
+**Live:** https://wcastats.grzegorzpacewicz.pl/
 
 Dashboard analityczny danych WCA (World Cube Association) dla zawodow speedcubing.
 

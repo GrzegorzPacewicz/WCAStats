@@ -4,7 +4,9 @@ import YearPicker from './components/YearPicker';
 import StatsSummary from './components/StatsSummary';
 import CompetitionList from './components/CompetitionList';
 import Chart from './components/Chart';
-import { fetchAllData } from './api/wca';
+import PersonModal from './components/PersonModal';
+import ResultsModal from './components/ResultsModal';
+import { fetchAllData, getCachedData } from './api/wca';
 
 function App() {
   const [country, setCountry] = useState('PL');
@@ -13,8 +15,12 @@ function App() {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [selectedCompetition, setSelectedCompetition] = useState(null);
 
-  const handleFetch = async () => {
+  const isCached = getCachedData(country, year) !== null;
+
+  const handleFetch = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     setProgress(null);
@@ -23,7 +29,7 @@ function App() {
     try {
       const result = await fetchAllData(country, year, (p) => {
         setProgress(p);
-      });
+      }, forceRefresh);
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -46,14 +52,25 @@ function App() {
             <CountryPicker value={country} onChange={setCountry} disabled={loading} />
             <YearPicker value={year} onChange={setYear} disabled={loading} />
             <button
-              onClick={handleFetch}
+              onClick={() => handleFetch(false)}
               disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg
                          hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                          disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Pobieranie...' : 'Pobierz dane'}
+              {loading ? 'Pobieranie...' : isCached ? 'Pokaż dane (z cache)' : 'Pobierz dane'}
             </button>
+            {isCached && (
+              <button
+                onClick={() => handleFetch(true)}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg
+                           hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+                           disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+              >
+                Odśwież
+              </button>
+            )}
           </div>
 
           {progress && (
@@ -82,12 +99,37 @@ function App() {
 
         {data && (
           <div className="space-y-6">
+            {data.cachedAt && (
+              <div className="text-xs text-gray-500 text-right">
+                Dane z cache: {new Date(data.cachedAt).toLocaleString('pl-PL')}
+              </div>
+            )}
             <StatsSummary data={data} />
             <Chart data={data.chartData} />
-            <CompetitionList competitions={data.competitions} />
+            <CompetitionList
+              competitions={data.competitions}
+              onCompetitionClick={setSelectedCompetition}
+            />
           </div>
         )}
       </div>
+
+      {selectedPerson && (
+        <PersonModal
+          wcaId={selectedPerson}
+          onClose={() => setSelectedPerson(null)}
+        />
+      )}
+
+      {selectedCompetition && (
+        <ResultsModal
+          competition={selectedCompetition}
+          onClose={() => setSelectedCompetition(null)}
+          onPersonClick={(wcaId) => {
+            setSelectedPerson(wcaId);
+          }}
+        />
+      )}
     </div>
   );
 }

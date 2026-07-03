@@ -36,7 +36,56 @@ export async function fetchCompetitors(competitionId) {
   return res.json();
 }
 
-export async function fetchAllData(countryIso2, year, onProgress) {
+export async function fetchCompetitionResults(competitionId) {
+  const url = `${BASE_URL}/competitions/${competitionId}/results`;
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch results for ${competitionId}: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function fetchPerson(wcaId) {
+  const url = `${BASE_URL}/persons/${wcaId}`;
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch person ${wcaId}: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+function getCacheKey(countryIso2, year) {
+  return `wca-${countryIso2}-${year}`;
+}
+
+export function getCachedData(countryIso2, year) {
+  const key = getCacheKey(countryIso2, year);
+  const cached = localStorage.getItem(key);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function setCachedData(countryIso2, year, data) {
+  const key = getCacheKey(countryIso2, year);
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+export async function fetchAllData(countryIso2, year, onProgress, forceRefresh = false) {
+  if (!forceRefresh) {
+    const cached = getCachedData(countryIso2, year);
+    if (cached) return cached;
+  }
+
   const competitions = await fetchCompetitions(countryIso2, year);
 
   const allCompetitors = new Map();
@@ -95,13 +144,18 @@ export async function fetchAllData(countryIso2, year, onProgress) {
     count: competitionsByMonth[i] || 0
   }));
 
-  return {
+  const result = {
     totalCompetitors: uniqueCompetitors.length,
     males,
     females,
     other,
     newcomers,
     competitions: competitionsWithCounts,
-    chartData
+    chartData,
+    cachedAt: new Date().toISOString()
   };
+
+  setCachedData(countryIso2, year, result);
+
+  return result;
 }

@@ -20,13 +20,17 @@ function App() {
 
   const [isCached, setIsCached] = useState(false);
 
-  const checkCache = async () => {
-    const cached = await getCachedData(country, year);
-    setIsCached(cached !== null);
-  };
-
   useEffect(() => {
-    checkCache();
+    const loadCachedData = async () => {
+      const cached = await getCachedData(country, year);
+      setIsCached(cached !== null);
+      if (cached) {
+        setData(cached);
+      } else {
+        setData(null);
+      }
+    };
+    loadCachedData();
   }, [country, year]);
 
   const handleFetch = async (forceRefresh = false) => {

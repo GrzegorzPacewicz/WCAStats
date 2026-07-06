@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CountryPicker from './components/CountryPicker';
 import YearPicker from './components/YearPicker';
 import StatsSummary from './components/StatsSummary';
@@ -18,7 +18,16 @@ function App() {
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
 
-  const isCached = getCachedData(country, year) !== null;
+  const [isCached, setIsCached] = useState(false);
+
+  const checkCache = async () => {
+    const cached = await getCachedData(country, year);
+    setIsCached(cached !== null);
+  };
+
+  useEffect(() => {
+    checkCache();
+  }, [country, year]);
 
   const handleFetch = async (forceRefresh = false) => {
     setLoading(true);

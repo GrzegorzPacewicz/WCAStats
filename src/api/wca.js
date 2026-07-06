@@ -1,7 +1,10 @@
+import PocketBase from 'pocketbase';
+
 const BASE_URL = 'https://www.worldcubeassociation.org/api/v0';
+const pb = new PocketBase('https://gp1.pecet.it');
 
 export async function fetchCompetitions(countryIso2, year) {
-  const competitions = [];
+  const competitionsMap = new Map();
   let page = 1;
 
   while (true) {
@@ -16,13 +19,17 @@ export async function fetchCompetitions(countryIso2, year) {
 
     if (data.length === 0) break;
 
-    competitions.push(...data);
+    for (const comp of data) {
+      if (!competitionsMap.has(comp.id)) {
+        competitionsMap.set(comp.id, comp);
+      }
+    }
 
     if (data.length < 25) break;
     page++;
   }
 
-  return competitions;
+  return Array.from(competitionsMap.values());
 }
 
 export async function fetchCompetitors(competitionId) {
@@ -58,31 +65,32 @@ export async function fetchPerson(wcaId) {
   return res.json();
 }
 
-function getCacheKey(countryIso2, year) {
-  return `wca-${countryIso2}-${year}`;
-}
-
-export function getCachedData(countryIso2, year) {
-  const key = getCacheKey(countryIso2, year);
+function getLocalCache(countryIso2, year) {
+  const key = `wca-${countryIso2}-${year}`;
   const cached = localStorage.getItem(key);
-  if (cached) {
-    try {
-      return JSON.parse(cached);
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return cached ? JSON.parse(cached) : null;
 }
 
-function setCachedData(countryIso2, year, data) {
-  const key = getCacheKey(countryIso2, year);
+function setLocalCache(countryIso2, year, data) {
+  const key = `wca-${countryIso2}-${year}`;
   localStorage.setItem(key, JSON.stringify(data));
 }
 
+export async function getCachedData(countryIso2, year) {
+  try {
+    const record = await pb.collection('wca_cache').getFirstListItem(
+      `country_iso2 = "${countryIso2}" && year = ${year}`
+    );
+    return record.data;
+  } catch {
+    return getLocalCache(countryIso2, year);
+  }
+}
+
+
 export async function fetchAllData(countryIso2, year, onProgress, forceRefresh = false) {
   if (!forceRefresh) {
-    const cached = getCachedData(countryIso2, year);
+    const cached = await getCachedData(countryIso2, year);
     if (cached) return cached;
   }
 
@@ -100,10 +108,17 @@ export async function fetchAllData(countryIso2, year, onProgress, forceRefresh =
 
     try {
       const competitors = await fetchCompetitors(comp.id);
+      const compYear = comp.start_date.substring(0, 4);
+
+      const newcomerCount = competitors.filter(p => {
+        if (!p.wca_id) return true;
+        return p.wca_id.substring(0, 4) === compYear;
+      }).length;
 
       competitionsWithCounts.push({
         ...comp,
-        competitorCount: competitors.length
+        competitorCount: competitors.length,
+        newcomerCount
       });
 
       for (const person of competitors) {
@@ -155,7 +170,7 @@ export async function fetchAllData(countryIso2, year, onProgress, forceRefresh =
     cachedAt: new Date().toISOString()
   };
 
-  setCachedData(countryIso2, year, result);
+  setLocalCache(countryIso2, year, result);
 
   return result;
 }

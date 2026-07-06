@@ -22,13 +22,18 @@ export default function CompetitionList({ competitions, onCompetitionClick }) {
               <div className="font-medium text-gray-900 truncate">{comp.name}</div>
               <div className="text-sm text-gray-500">{comp.start_date}</div>
             </div>
-            <div className="ml-4 flex-shrink-0 flex items-center gap-2">
+            <div className="ml-4 flex-shrink-0 flex items-center gap-3">
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                   ${comp.error ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}
               >
                 {comp.competitorCount} uczestników
               </span>
+              {comp.newcomerCount > 0 && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  {comp.newcomerCount} nowych
+                </span>
+              )}
               <span className="text-gray-400">→</span>
             </div>
           </button>

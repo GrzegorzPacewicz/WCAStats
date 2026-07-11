@@ -1,18 +1,23 @@
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function sendEmail(env, subject, body) {
-  const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: env.NOTIFY_EMAIL }] }],
-      from: { email: `wcastats@${env.FROM_DOMAIN}`, name: 'WCA Stats' },
-      subject,
-      content: [{ type: 'text/plain', value: body }]
-    })
-  });
-  if (!res.ok) {
-    console.error('Email failed:', await res.text());
+async function sendDiscordNotification(env, message, isError = false) {
+  if (!env.DISCORD_WEBHOOK_URL) return;
+
+  try {
+    await fetch(env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{
+          title: isError ? '❌ WCA Stats Prefetch Error' : '✅ WCA Stats Prefetch OK',
+          description: message,
+          color: isError ? 0xff0000 : 0x00ff00,
+          timestamp: new Date().toISOString()
+        }]
+      })
+    });
+  } catch (err) {
+    console.error('Discord notification failed:', err.message);
   }
 }
 
@@ -55,32 +60,11 @@ async function fetchCompetitors(env, competitionId) {
   return res.json();
 }
 
-async function getPocketBaseToken(env) {
-  const res = await fetch(`${env.POCKETBASE_URL}/api/admins/auth-with-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      identity: env.PB_ADMIN_EMAIL,
-      password: env.PB_ADMIN_PASSWORD
-    })
-  });
-
-  if (!res.ok) {
-    throw new Error(`PocketBase auth failed: ${res.status}`);
-  }
-
-  const data = await res.json();
-  return data.token;
-}
-
-async function logToPocketBase(env, token, status, message) {
+async function logToPocketBase(env, status, message) {
   try {
     await fetch(`${env.POCKETBASE_URL}/api/collections/prefetch_logs/records`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, message })
     });
   } catch (err) {
@@ -88,11 +72,9 @@ async function logToPocketBase(env, token, status, message) {
   }
 }
 
-async function saveToPocketBase(env, year, data, token) {
+async function saveToPocketBase(env, year, data) {
   const listUrl = `${env.POCKETBASE_URL}/api/collections/wca_cache/records?filter=(country_iso2='${env.COUNTRY}' && year=${year})`;
-  const listRes = await fetch(listUrl, {
-    headers: { 'Authorization': token }
-  });
+  const listRes = await fetch(listUrl);
   const listData = await listRes.json();
 
   const payload = {
@@ -101,10 +83,7 @@ async function saveToPocketBase(env, year, data, token) {
     data: JSON.stringify(data)
   };
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': token
-  };
+  const headers = { 'Content-Type': 'application/json' };
 
   if (listData.items && listData.items.length > 0) {
     const existing = listData.items[0];
@@ -200,19 +179,11 @@ export default {
     const results = [];
     const errors = [];
 
-    let token;
-    try {
-      token = await getPocketBaseToken(env);
-    } catch (err) {
-      await sendEmail(env, 'WCA Stats prefetch BŁĄD', `Nie można zalogować do PocketBase: ${err.message}`);
-      return;
-    }
-
     for (const year of years) {
       try {
         const data = await fetchYearData(env, year);
         if (data) {
-          await saveToPocketBase(env, year, data, token);
+          await saveToPocketBase(env, year, data);
           results.push(`${year}: ${data.competitions.length} zawodów, ${data.totalCompetitors} zawodników`);
         } else {
           results.push(`${year}: brak danych`);
@@ -228,8 +199,9 @@ export default {
       ...(errors.length > 0 ? ['Błędy:', ...errors] : [])
     ].join('\n');
 
-    await logToPocketBase(env, token, status, message);
-    await sendEmail(env, `WCA Stats prefetch ${status === 'ok' ? 'OK' : 'z błędami'}`, message);
+    await logToPocketBase(env, status, message);
+    await sendDiscordNotification(env, message, errors.length > 0);
+    console.log(`Prefetch completed: ${status}`, message);
   },
 
   async fetch(request, env, ctx) {

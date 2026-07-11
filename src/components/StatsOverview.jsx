@@ -26,6 +26,28 @@ const EVENT_NAMES = {
   'mmagic': 'MasterM*',
 };
 
+const EVENT_COLORS = {
+  '333': '#3b82f6',
+  '222': '#f59e0b',
+  '444': '#10b981',
+  'pyram': '#ec4899',
+  '333oh': '#8b5cf6',
+  'skewb': '#06b6d4',
+  'minx': '#f97316',
+  'clock': '#6366f1',
+  'sq1': '#84cc16',
+  '555': '#14b8a6',
+  '666': '#a855f7',
+  '777': '#78716c',
+  '333bf': '#0ea5e9',
+  '333fm': '#eab308',
+  '333mbf': '#dc2626',
+  '444bf': '#7c3aed',
+  '555bf': '#be185d',
+};
+
+const DEFAULT_VISIBLE_EVENTS = ['333', '222', '444', 'pyram', '333oh'];
+
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   const competitions = payload.find(p => p.dataKey === 'competitions')?.value || 0;
@@ -84,6 +106,15 @@ export default function StatsOverview() {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
+  const [visibleEvents, setVisibleEvents] = useState(DEFAULT_VISIBLE_EVENTS);
+
+  const toggleEvent = (eventId) => {
+    setVisibleEvents(prev =>
+      prev.includes(eventId)
+        ? prev.filter(e => e !== eventId)
+        : [...prev, eventId]
+    );
+  };
 
   useEffect(() => {
     const loadStats = async () => {
@@ -145,7 +176,7 @@ export default function StatsOverview() {
         <h2 className="font-semibold text-gray-900 mb-4">Rozwój społeczności przez lata</h2>
         <div className="h-72 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={stats.yearlyTrend} margin={{ left: -35 }}>
+            <ComposedChart data={stats.yearlyTrend} margin={{ left: 0, right: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis yAxisId="left" tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -179,10 +210,10 @@ export default function StatsOverview() {
         <p className="text-xs text-gray-500 mb-2">Kliknij na rok aby zobaczyć szczegóły</p>
         <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.yearlyTrend} margin={{ left: -35 }}>
+            <BarChart data={stats.yearlyTrend} margin={{ left: 0, right: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={40} />
               <Tooltip content={<GenderTooltip />} cursor={false} />
               <Bar dataKey="males" stackId="a" fill="#3b82f6" name="Mężczyźni" style={{ cursor: 'pointer' }} onClick={(data) => setSelectedYear(data)} />
               <Bar dataKey="females" stackId="a" fill="#ec4899" name="Kobiety" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }} onClick={(data) => setSelectedYear(data)} />
@@ -243,7 +274,7 @@ export default function StatsOverview() {
         <h2 className="font-semibold text-gray-900 mb-4">Sezonowość (wszystkie lata)</h2>
         <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.seasonality} margin={{ left: -35 }}>
+            <BarChart data={stats.seasonality} margin={{ left: 0, right: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
@@ -273,10 +304,10 @@ export default function StatsOverview() {
                 ...e,
                 name: EVENT_NAMES[e.event] || e.event,
                 fill: ['333ft', '333mbo', 'magic', 'mmagic'].includes(e.event) ? '#a16207' : '#3b82f6'
-              }))} layout="vertical" margin={{ left: -40 }}>
+              }))} layout="vertical" margin={{ left: 0, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 12 }} />
-              <YAxis dataKey="name" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={150} />
+              <YAxis dataKey="name" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={80} />
               <Tooltip
                 cursor={false}
                 contentStyle={{
@@ -300,6 +331,67 @@ export default function StatsOverview() {
         <p className="text-xs text-gray-500 mt-2">* konkurencje historyczne</p>
       </div>
 
+      {/* Event trends over years */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Trendy popularności konkurencji</h2>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {Object.entries(EVENT_COLORS).map(([eventId, color]) => {
+            const isActive = visibleEvents.includes(eventId);
+            return (
+              <button
+                key={eventId}
+                onClick={() => toggleEvent(eventId)}
+                className={`px-2 py-1 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'text-white'
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                }`}
+                style={isActive ? { backgroundColor: color } : {}}
+              >
+                {EVENT_NAMES[eventId]}
+              </button>
+            );
+          })}
+        </div>
+        <div className="h-80 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={stats.eventTrends} margin={{ left: 0, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="year"
+                tick={{ fill: '#6b7280', fontSize: 9 }}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+              />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={40} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: 'none',
+                }}
+                labelStyle={{ color: '#111827', fontWeight: 500 }}
+              />
+              {visibleEvents.map(eventId => (
+                <Line
+                  key={eventId}
+                  type="monotone"
+                  dataKey={eventId}
+                  name={EVENT_NAMES[eventId]}
+                  stroke={EVENT_COLORS[eventId]}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* Top cities */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
         <h2 className="font-semibold text-gray-900 mb-4">Miasta z największą liczbą zawodów</h2>
@@ -308,10 +400,10 @@ export default function StatsOverview() {
             <BarChart data={stats.topCities.map(c => ({
                 ...c,
                 city: c.city === 'Dąbrowa Górnicza' ? 'D. Górnicza' : c.city
-              }))} layout="vertical" margin={{ left: -40 }}>
+              }))} layout="vertical" margin={{ left: 0, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 12 }} />
-              <YAxis dataKey="city" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={130} />
+              <YAxis dataKey="city" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={85} />
               <Tooltip
                 cursor={false}
                 contentStyle={{

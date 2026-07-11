@@ -1,0 +1,13 @@
+name = "wcastats-prefetch"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 4 * * 2"]  # Wtorek 4:00 UTC = 6:00 Europe/Warsaw
+
+[vars]
+POCKETBASE_URL = "https://gp1.pecet.it"
+WCA_API_URL = "https://www.worldcubeassociation.org/api/v0"
+COUNTRY = "PL"
+NOTIFY_EMAIL = "g.pacewicz@gmail.com"
+FROM_DOMAIN = "grzegorzpacewicz.pl"

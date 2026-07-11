@@ -76,6 +76,26 @@ function setLocalCache(countryIso2, year, data) {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
+async function setPocketBaseCache(countryIso2, year, data) {
+  try {
+    const existing = await pb.collection('wca_cache').getFirstListItem(
+      `country_iso2 = "${countryIso2}" && year = ${year}`
+    ).catch(() => null);
+
+    if (existing) {
+      await pb.collection('wca_cache').update(existing.id, { data });
+    } else {
+      await pb.collection('wca_cache').create({
+        country_iso2: countryIso2,
+        year,
+        data
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to save to PocketBase:', err.message);
+  }
+}
+
 export async function getCachedData(countryIso2, year) {
   try {
     const record = await pb.collection('wca_cache').getFirstListItem(
@@ -171,6 +191,7 @@ export async function fetchAllData(countryIso2, year, onProgress, forceRefresh =
   };
 
   setLocalCache(countryIso2, year, result);
+  setPocketBaseCache(countryIso2, year, result);
 
   return result;
 }

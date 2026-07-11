@@ -16,25 +16,25 @@ export default function CompetitionList({ competitions, onCompetitionClick }) {
           <button
             key={comp.id}
             onClick={() => onCompetitionClick(comp)}
-            className="w-full px-4 py-3 flex justify-between items-center hover:bg-gray-50 text-left transition-colors"
+            className="w-full px-4 py-3 hover:bg-gray-50 text-left transition-colors"
           >
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-gray-900 truncate">{comp.name}</div>
-              <div className="text-sm text-gray-500">{comp.start_date}</div>
+            <div className="flex justify-between items-start gap-2">
+              <div className="font-medium text-gray-900">{comp.name}</div>
+              <span className="text-gray-400 flex-shrink-0">→</span>
             </div>
-            <div className="ml-4 flex-shrink-0 flex items-center gap-3">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-gray-500">{comp.start_date}</span>
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                   ${comp.error ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}
               >
                 {comp.competitorCount} uczestników
               </span>
               {comp.newcomerCount > 0 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                   {comp.newcomerCount} nowych
                 </span>
               )}
-              <span className="text-gray-400">→</span>
             </div>
           </button>
         ))}

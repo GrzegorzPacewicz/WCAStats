@@ -10,7 +10,7 @@ import { fetchAllData, getCachedData } from './api/wca';
 
 function App() {
   const [country, setCountry] = useState('PL');
-  const [year, setYear] = useState(new Date().getFullYear() - 1);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
@@ -18,12 +18,9 @@ function App() {
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
 
-  const [isCached, setIsCached] = useState(false);
-
   useEffect(() => {
     const loadCachedData = async () => {
       const cached = await getCachedData(country, year);
-      setIsCached(cached !== null);
       if (cached) {
         setData(cached);
       } else {
@@ -57,7 +54,7 @@ function App() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">WCA Stats</h1>
-          <p className="text-gray-600">Analiza danych zawodów speedcubing</p>
+          <p className="text-gray-600">Analiza danych zawodów speedcubingowych w Polsce</p>
         </header>
 
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 mb-6">
@@ -65,25 +62,14 @@ function App() {
             <CountryPicker value={country} onChange={setCountry} disabled={loading} />
             <YearPicker value={year} onChange={setYear} disabled={loading} />
             <button
-              onClick={() => handleFetch(false)}
+              onClick={() => handleFetch(true)}
               disabled={loading}
-              className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg
-                         hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                         disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg
+                         hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+                         disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Pobieranie...' : isCached ? 'Pokaż dane (z cache)' : 'Pobierz dane'}
+              {loading ? 'Pobieranie...' : 'Odśwież'}
             </button>
-            {isCached && (
-              <button
-                onClick={() => handleFetch(true)}
-                disabled={loading}
-                className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg
-                           hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
-                           disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
-              >
-                Odśwież
-              </button>
-            )}
           </div>
 
           {progress && (

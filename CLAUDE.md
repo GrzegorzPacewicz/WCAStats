@@ -31,8 +31,14 @@ Base: `https://www.worldcubeassociation.org/api/v0`
 
 ## Cache
 
-localStorage z kluczem `wca-{kraj}-{rok}`. Przycisk "Odswiez" wymusza ponowne pobranie.
+Dwupoziomowy cache:
+1. **PocketBase** (`https://gp1.pecet.it`) - wspoldzielony cache miedzy uzytkownikami, kolekcja `wca_cache`
+2. **localStorage** - fallback gdy PocketBase niedostepny
+
+Klucz: `wca-{kraj}-{rok}`. Przycisk "Odswiez" wymusza ponowne pobranie i aktualizuje oba cache.
 
 ## Deploy
 
-Cloudflare Pages - `npm run build`, output `dist/`
+Cloudflare Pages - automatyczny deploy z GitHub przy pushu do `main`.
+Build: `npm run build`, output: `dist/`
+Live: `https://wcastats.grzegorzpacewicz.pl`

@@ -8,16 +8,19 @@ Dashboard analityczny dla danych WCA (speedcubing). Pobiera dane z WCA API v0 i 
 
 ```
 src/
-  api/wca.js          - fetch z WCA API, paginacja, cache localStorage
+  api/wca.js            - fetch z WCA API, paginacja, cache localStorage/PocketBase
   components/
-    CountryPicker.jsx - dropdown krajow
-    YearPicker.jsx    - dropdown lat
-    StatsSummary.jsx  - karty ze statystykami
+    CountryPicker.jsx   - dropdown krajow
+    YearPicker.jsx      - dropdown lat
+    StatsSummary.jsx    - karty ze statystykami
     CompetitionList.jsx - lista zawodow (klikalne)
-    Chart.jsx         - BarChart zawodow per miesiac
-    PersonModal.jsx   - profil zawodnika (rekordy, medale)
-    ResultsModal.jsx  - wyniki zawodow po eventach
-  App.jsx             - glowny komponent, state, modale
+    Chart.jsx           - BarChart zawodow per miesiac
+    PersonModal.jsx     - profil zawodnika (rekordy, medale)
+    ResultsModal.jsx    - wyniki zawodow po eventach
+    StatsOverview.jsx   - zakladka Statystyki (trendy, plec, miasta, eventy)
+  App.jsx               - glowny komponent, state, modale, nawigacja tabs
+scripts/
+  prefetch.js           - skrypt do ladowania danych do PocketBase
 ```
 
 ## API WCA v0
@@ -42,3 +45,14 @@ Klucz: `wca-{kraj}-{rok}`. Przycisk "Odswiez" wymusza ponowne pobranie i aktuali
 Cloudflare Pages - automatyczny deploy z GitHub przy pushu do `main`.
 Build: `npm run build`, output: `dist/`
 Live: `https://wcastats.grzegorzpacewicz.pl`
+
+## Prefetch
+
+`node scripts/prefetch.js [startYear] [endYear]` - pobiera dane PL do PocketBase.
+Wymaga 300ms delay miedzy requestami (rate limiting WCA API).
+Dane PL 2003-2026 sa juz w cache.
+
+## TODO
+
+- Trendy popularnosci konkurencji przez lata (eventTrends dane juz sa w API)
+- Mirror bazy WCA w PocketBase dla szczegolowych statystyk (top zawodnicy, retention, rekordy NR)

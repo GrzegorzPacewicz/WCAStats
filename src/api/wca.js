@@ -108,6 +108,93 @@ export async function getCachedData(countryIso2, year) {
 }
 
 
+export async function fetchAllYearsData(countryIso2) {
+  const records = await pb.collection('wca_cache').getFullList({
+    filter: `country_iso2 = "${countryIso2}"`,
+    sort: 'year',
+    requestKey: null,
+  });
+
+  if (records.length === 0) {
+    throw new Error('Brak danych w cache. Najpierw pobierz dane dla poszczególnych lat.');
+  }
+
+  let totalCompetitions = 0;
+  let totalNewcomers = 0;
+  let totalParticipations = 0;
+  let totalMales = 0;
+  let totalFemales = 0;
+  const yearlyTrend = [];
+  const monthCounts = Array(12).fill(0);
+  const allCompetitions = [];
+
+  for (const record of records) {
+    const data = record.data;
+    const year = record.year;
+
+    totalCompetitions += data.competitions.length;
+    totalNewcomers += data.newcomers;
+    totalMales += data.males || 0;
+    totalFemales += data.females || 0;
+
+    for (const comp of data.competitions) {
+      totalParticipations += comp.competitorCount || 0;
+      allCompetitions.push({ ...comp, year });
+
+      const month = new Date(comp.start_date).getMonth();
+      monthCounts[month]++;
+    }
+
+    yearlyTrend.push({
+      year,
+      competitions: data.competitions.length,
+      newcomers: data.newcomers,
+      competitors: data.totalCompetitors,
+      males: data.males || 0,
+      females: data.females || 0,
+    });
+  }
+
+  const monthNames = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+  const seasonality = monthNames.map((name, i) => ({
+    name,
+    count: monthCounts[i],
+  }));
+
+  const biggestCompetitions = [...allCompetitions]
+    .filter(c => c.competitorCount > 0)
+    .sort((a, b) => b.competitorCount - a.competitorCount)
+    .slice(0, 10);
+
+  const mostCompetitionsYear = yearlyTrend.reduce((max, y) => y.competitions > max.count ? { year: y.year, count: y.competitions } : max, { year: 0, count: 0 });
+  const mostNewcomersYear = yearlyTrend.reduce((max, y) => y.newcomers > max.count ? { year: y.year, count: y.newcomers } : max, { year: 0, count: 0 });
+
+  const sortedByDate = [...allCompetitions].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+  const firstCompetition = sortedByDate[0] || { name: '-', year: '-' };
+
+  return {
+    totalCompetitions,
+    totalUniqueCompetitors: totalNewcomers,
+    totalNewcomers,
+    totalMales,
+    totalFemales,
+    yearsActive: records.length,
+    yearlyTrend,
+    seasonality,
+    biggestCompetitions,
+    records: {
+      mostCompetitionsYear,
+      mostNewcomersYear,
+      firstCompetition: { name: firstCompetition.name, year: firstCompetition.year },
+    },
+    averages: {
+      competitionsPerYear: totalCompetitions / records.length,
+      competitorsPerCompetition: totalParticipations / totalCompetitions,
+      newcomersPerYear: totalNewcomers / records.length,
+    },
+  };
+}
+
 export async function fetchAllData(countryIso2, year, onProgress, forceRefresh = false) {
   if (!forceRefresh) {
     const cached = await getCachedData(countryIso2, year);

@@ -8,10 +8,10 @@ export default function Chart({ data }) {
       <h2 className="font-semibold text-gray-900 mb-4">Zawody w miesiącach</h2>
       <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
+          <BarChart data={data} margin={{ left: -20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 12 }} />
-            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} />
+            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
             <Tooltip
               cursor={false}
               contentStyle={{

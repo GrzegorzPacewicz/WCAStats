@@ -127,6 +127,9 @@ export async function fetchAllYearsData(countryIso2) {
   const yearlyTrend = [];
   const monthCounts = Array(12).fill(0);
   const allCompetitions = [];
+  const cityCounts = {};
+  const eventCounts = {};
+  const eventsByYear = {};
 
   for (const record of records) {
     const data = record.data;
@@ -143,6 +146,18 @@ export async function fetchAllYearsData(countryIso2) {
 
       const month = new Date(comp.start_date).getMonth();
       monthCounts[month]++;
+
+      if (comp.city) {
+        cityCounts[comp.city] = (cityCounts[comp.city] || 0) + 1;
+      }
+
+      if (comp.event_ids) {
+        for (const eventId of comp.event_ids) {
+          eventCounts[eventId] = (eventCounts[eventId] || 0) + 1;
+          if (!eventsByYear[year]) eventsByYear[year] = {};
+          eventsByYear[year][eventId] = (eventsByYear[year][eventId] || 0) + 1;
+        }
+      }
     }
 
     yearlyTrend.push({
@@ -166,6 +181,19 @@ export async function fetchAllYearsData(countryIso2) {
     .sort((a, b) => b.competitorCount - a.competitorCount)
     .slice(0, 10);
 
+  const topCities = Object.entries(cityCounts)
+    .map(([city, count]) => ({ city, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 15);
+
+  const topEvents = Object.entries(eventCounts)
+    .map(([event, count]) => ({ event, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const eventTrends = Object.entries(eventsByYear)
+    .map(([year, events]) => ({ year: parseInt(year), ...events }))
+    .sort((a, b) => a.year - b.year);
+
   const mostCompetitionsYear = yearlyTrend.reduce((max, y) => y.competitions > max.count ? { year: y.year, count: y.competitions } : max, { year: 0, count: 0 });
   const mostNewcomersYear = yearlyTrend.reduce((max, y) => y.newcomers > max.count ? { year: y.year, count: y.newcomers } : max, { year: 0, count: 0 });
 
@@ -182,6 +210,9 @@ export async function fetchAllYearsData(countryIso2) {
     yearlyTrend,
     seasonality,
     biggestCompetitions,
+    topCities,
+    topEvents,
+    eventTrends,
     records: {
       mostCompetitionsYear,
       mostNewcomersYear,

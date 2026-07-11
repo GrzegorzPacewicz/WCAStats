@@ -1,6 +1,30 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart } from 'recharts';
 import { fetchAllYearsData } from '../api/wca';
+
+const EVENT_NAMES = {
+  '333': '3x3x3',
+  '222': '2x2x2',
+  '444': '4x4x4',
+  '555': '5x5x5',
+  '666': '6x6x6',
+  '777': '7x7x7',
+  '333bf': '3bld',
+  '333fm': 'FMC',
+  '333oh': 'OH',
+  '333ft': 'Feet*',
+  '333mbf': 'MBLD',
+  '333mbo': 'MBLD Old*',
+  '444bf': '4bld',
+  '555bf': '5bld',
+  'clock': 'Clock',
+  'minx': 'Megaminx',
+  'pyram': 'Pyraminx',
+  'skewb': 'Skewb',
+  'sq1': 'Square-1',
+  'magic': 'Magic*',
+  'mmagic': 'MasterM*',
+};
 
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
@@ -121,21 +145,21 @@ export default function StatsOverview() {
         <h2 className="font-semibold text-gray-900 mb-4">Rozwój społeczności przez lata</h2>
         <div className="h-72 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={stats.yearlyTrend}>
+            <ComposedChart data={stats.yearlyTrend} margin={{ left: -35 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis yAxisId="left" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: '#6b7280', fontSize: 12 }} domain={[0, 2000]} />
               <Tooltip content={<TrendTooltip />} cursor={false} />
-              <Line yAxisId="left" type="monotone" dataKey="competitions" stroke="#3b82f6" strokeWidth={2} name="Zawody" dot={{ r: 3 }} />
+              <Bar yAxisId="left" dataKey="competitions" fill="#93c5fd" name="Zawody" radius={[4, 4, 0, 0]} />
               <Line yAxisId="right" type="monotone" dataKey="competitors" stroke="#f59e0b" strokeWidth={2} name="Aktywni" dot={{ r: 3 }} />
               <Line yAxisId="right" type="monotone" dataKey="newcomers" stroke="#10b981" strokeWidth={2} name="Debiutanci" dot={{ r: 3 }} />
-            </LineChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="flex flex-wrap justify-center gap-4 mt-2 text-sm">
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+            <span className="w-3 h-3 rounded-full bg-blue-300"></span>
             Zawody
           </span>
           <span className="flex items-center gap-2">
@@ -155,7 +179,7 @@ export default function StatsOverview() {
         <p className="text-xs text-gray-500 mb-2">Kliknij na rok aby zobaczyć szczegóły</p>
         <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.yearlyTrend}>
+            <BarChart data={stats.yearlyTrend} margin={{ left: -35 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -219,10 +243,10 @@ export default function StatsOverview() {
         <h2 className="font-semibold text-gray-900 mb-4">Sezonowość (wszystkie lata)</h2>
         <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.seasonality}>
+            <BarChart data={stats.seasonality} margin={{ left: -35 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 12 }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
               <Tooltip
                 cursor={false}
                 contentStyle={{
@@ -235,6 +259,71 @@ export default function StatsOverview() {
                 labelStyle={{ color: '#111827', fontWeight: 500 }}
               />
               <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Zawody" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Top events */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Popularność konkurencji</h2>
+        <div className="h-[500px] [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stats.topEvents.map(e => ({
+                ...e,
+                name: EVENT_NAMES[e.event] || e.event,
+                fill: ['333ft', '333mbo', 'magic', 'mmagic'].includes(e.event) ? '#a16207' : '#3b82f6'
+              }))} layout="vertical" margin={{ left: -40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis dataKey="name" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={150} />
+              <Tooltip
+                cursor={false}
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: 'none',
+                }}
+                itemStyle={{ color: '#f59e0b' }}
+                labelStyle={{ color: '#111827', fontWeight: 500 }}
+              />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Zawody">
+                {stats.topEvents.map((entry, index) => {
+                  const isHistoric = ['333ft', '333mbo', 'magic', 'mmagic'].includes(entry.event);
+                  return <Cell key={`cell-${index}`} fill={isHistoric ? '#d97706' : '#3b82f6'} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">* konkurencje historyczne</p>
+      </div>
+
+      {/* Top cities */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Miasta z największą liczbą zawodów</h2>
+        <div className="h-96 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stats.topCities.map(c => ({
+                ...c,
+                city: c.city === 'Dąbrowa Górnicza' ? 'D. Górnicza' : c.city
+              }))} layout="vertical" margin={{ left: -40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis dataKey="city" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={130} />
+              <Tooltip
+                cursor={false}
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: 'none',
+                }}
+                itemStyle={{ color: '#059669' }}
+                labelStyle={{ color: '#111827', fontWeight: 500 }}
+              />
+              <Bar dataKey="count" fill="#059669" radius={[0, 4, 4, 0]} name="Zawody" />
             </BarChart>
           </ResponsiveContainer>
         </div>

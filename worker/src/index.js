@@ -212,6 +212,32 @@ export default {
       return new Response('Prefetch started', { status: 200 });
     }
 
+    if (url.pathname === '/test-discord') {
+      const hasWebhook = !!env.DISCORD_WEBHOOK_URL;
+      if (!hasWebhook) {
+        return new Response('DISCORD_WEBHOOK_URL not set', { status: 500 });
+      }
+
+      try {
+        const res = await fetch(env.DISCORD_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: '✅ WCA Stats Test',
+              description: 'Test notification',
+              color: 0x00ff00,
+              timestamp: new Date().toISOString()
+            }]
+          })
+        });
+        const text = await res.text();
+        return new Response(`Discord response: ${res.status} - ${text}`, { status: 200 });
+      } catch (err) {
+        return new Response(`Discord error: ${err.message}`, { status: 500 });
+      }
+    }
+
     return new Response('WCA Stats Prefetch Worker. GET /run to trigger manually.', { status: 200 });
   }
 };

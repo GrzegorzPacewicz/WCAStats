@@ -2,8 +2,16 @@ name = "wcastats-prefetch"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+
 [triggers]
-crons = ["0 4 * * 2"]  # Wtorek 4:00 UTC = 6:00 Europe/Warsaw
+crons = ["0 4 * * 2"]
 
 [vars]
 POCKETBASE_URL = "https://gp1.pecet.it"

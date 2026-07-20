@@ -136,6 +136,18 @@ export async function getCachedData(countryIso2, year) {
   }
 }
 
+export async function getLastUpdateTime(countryIso2 = 'PL') {
+  try {
+    const record = await pb.collection('wca_cache').getFirstListItem(
+      `country_iso2 = "${countryIso2}"`,
+      { sort: '-updated' }
+    );
+    return record.updated;
+  } catch {
+    return null;
+  }
+}
+
 
 export async function fetchAllYearsData(countryIso2) {
   const records = await pb.collection('wca_cache').getFullList({
@@ -451,8 +463,29 @@ export async function refreshRecentCompetitions(countryIso2, onProgress) {
     const updatedCompetitions = Array.from(existingCompsMap.values())
       .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
 
-    const totalCompetitors = updatedCompetitions.reduce((sum, c) => sum + (c.competitorCount || 0), 0);
-    const newcomers = updatedCompetitions.reduce((sum, c) => sum + (c.newcomerCount || 0), 0);
+    const allCompetitors = new Map();
+    for (const comp of updatedCompetitions) {
+      if (comp.error) continue;
+      try {
+        const competitors = await fetchCompetitors(comp.id);
+        for (const person of competitors) {
+          if (person.wca_id && !allCompetitors.has(person.wca_id)) {
+            allCompetitors.set(person.wca_id, person);
+          }
+        }
+      } catch (err) {
+        console.warn(`Skipping competitors for ${comp.id}: ${err.message}`);
+      }
+    }
+
+    const uniqueCompetitors = Array.from(allCompetitors.values());
+    const males = uniqueCompetitors.filter(p => p.gender === 'm').length;
+    const females = uniqueCompetitors.filter(p => p.gender === 'f').length;
+    const other = uniqueCompetitors.length - males - females;
+    const newcomers = uniqueCompetitors.filter(p => {
+      const wcaYear = p.wca_id?.substring(0, 4);
+      return wcaYear === String(yearNum);
+    }).length;
 
     const competitionsByMonth = {};
     for (const comp of updatedCompetitions) {
@@ -467,10 +500,10 @@ export async function refreshRecentCompetitions(countryIso2, onProgress) {
     }));
 
     const result = {
-      totalCompetitors,
-      males: existingData.males,
-      females: existingData.females,
-      other: existingData.other,
+      totalCompetitors: uniqueCompetitors.length,
+      males,
+      females,
+      other,
       newcomers,
       competitions: updatedCompetitions,
       chartData,

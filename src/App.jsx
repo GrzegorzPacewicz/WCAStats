@@ -8,7 +8,7 @@ import PersonModal from './components/PersonModal';
 import ResultsModal from './components/ResultsModal';
 import StatsOverview from './components/StatsOverview';
 import AdminPanel from './components/AdminPanel';
-import { getCachedData } from './api/wca';
+import { getCachedData, getLastUpdateTime } from './api/wca';
 
 function App() {
   const [tab, setTab] = useState('year');
@@ -17,6 +17,11 @@ function App() {
   const [data, setData] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  useEffect(() => {
+    getLastUpdateTime('PL').then(setLastUpdate);
+  }, []);
 
   useEffect(() => {
     const loadCachedData = async () => {
@@ -36,6 +41,11 @@ function App() {
         <header className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">WCA Stats</h1>
           <p className="text-gray-600">Analiza danych zawodów speedcubingowych w Polsce</p>
+          {lastUpdate && (
+            <p className="text-xs text-gray-400 mt-1">
+              Ostatnia aktualizacja: {new Date(lastUpdate).toLocaleString('pl-PL')}
+            </p>
+          )}
         </header>
 
         {/* Tabs */}

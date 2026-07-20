@@ -11,7 +11,7 @@ head_sampling_rate = 1
 invocation_logs = true
 
 [triggers]
-crons = ["0 4 * * 2"]
+crons = ["0 8 20 7 *"]
 
 [vars]
 POCKETBASE_URL = "https://gp1.pecet.it"

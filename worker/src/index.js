@@ -1,5 +1,8 @@
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const SUBREQUEST_BUDGET = 40;
+const CACHE_STALE_DAYS = 14;
+
 async function sendDiscordNotification(env, message, isError = false) {
   if (!env.DISCORD_WEBHOOK_URL) return;
 
@@ -72,6 +75,62 @@ async function logToPocketBase(env, status, message) {
   }
 }
 
+async function getCompetitionCache(env, competitionIds) {
+  if (competitionIds.length === 0) return new Map();
+
+  const filter = competitionIds.map(id => `competition_id='${id}'`).join(' || ');
+  const url = `${env.POCKETBASE_URL}/api/collections/competition_cache/records?filter=(${filter})&perPage=500`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const cache = new Map();
+    for (const item of data.items || []) {
+      cache.set(item.competition_id, item);
+    }
+    return cache;
+  } catch (err) {
+    console.error('Failed to get competition cache:', err.message);
+    return new Map();
+  }
+}
+
+async function saveCompetitionCache(env, competition, competitorCount, newcomerCount, isFinal) {
+  const payload = {
+    competition_id: competition.id,
+    year: parseInt(competition.start_date.substring(0, 4)),
+    end_date: competition.end_date,
+    competitor_count: competitorCount,
+    newcomer_count: newcomerCount,
+    is_final: isFinal,
+    cached_at: new Date().toISOString()
+  };
+
+  const headers = { 'Content-Type': 'application/json' };
+  const checkUrl = `${env.POCKETBASE_URL}/api/collections/competition_cache/records?filter=(competition_id='${competition.id}')`;
+
+  try {
+    const checkRes = await fetch(checkUrl);
+    const checkData = await checkRes.json();
+
+    if (checkData.items && checkData.items.length > 0) {
+      await fetch(`${env.POCKETBASE_URL}/api/collections/competition_cache/records/${checkData.items[0].id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload)
+      });
+    } else {
+      await fetch(`${env.POCKETBASE_URL}/api/collections/competition_cache/records`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+    }
+  } catch (err) {
+    console.error('Failed to save competition cache:', err.message);
+  }
+}
+
 async function saveToPocketBase(env, year, data) {
   const listUrl = `${env.POCKETBASE_URL}/api/collections/wca_cache/records?filter=(country_iso2='${env.COUNTRY}' && year=${year})`;
   const listRes = await fetch(listUrl);
@@ -101,22 +160,61 @@ async function saveToPocketBase(env, year, data) {
   }
 }
 
-async function fetchYearData(env, year) {
+function isCompetitionFinal(endDate) {
+  const end = new Date(endDate);
+  const now = new Date();
+  const diffDays = (now - end) / (1000 * 60 * 60 * 24);
+  return diffDays > CACHE_STALE_DAYS;
+}
+
+async function fetchYearData(env, year, subrequestBudget) {
   const competitions = await fetchCompetitions(env, year);
+  subrequestBudget.used += Math.ceil(competitions.length / 25);
 
   if (competitions.length === 0) {
     return null;
   }
 
-  const allCompetitors = new Map();
+  const competitionIds = competitions.map(c => c.id);
+  const competitionCache = await getCompetitionCache(env, competitionIds);
+  subrequestBudget.used += 1;
+
   const competitionsWithCounts = [];
+  let skippedCount = 0;
+  let fetchedCount = 0;
 
   for (const comp of competitions) {
+    const cached = competitionCache.get(comp.id);
+    const isFinal = isCompetitionFinal(comp.end_date);
+
+    if (cached && cached.is_final && isFinal) {
+      competitionsWithCounts.push({
+        ...comp,
+        competitorCount: cached.competitor_count,
+        newcomerCount: cached.newcomer_count,
+        fromCache: true
+      });
+      skippedCount++;
+      continue;
+    }
+
+    if (subrequestBudget.used >= SUBREQUEST_BUDGET) {
+      competitionsWithCounts.push({
+        ...comp,
+        competitorCount: cached?.competitor_count || 0,
+        newcomerCount: cached?.newcomer_count || 0,
+        deferred: true
+      });
+      continue;
+    }
+
     try {
       await sleep(300);
       const competitors = await fetchCompetitors(env, comp.id);
-      const compYear = comp.start_date.substring(0, 4);
+      subrequestBudget.used += 1;
+      fetchedCount++;
 
+      const compYear = comp.start_date.substring(0, 4);
       const newcomerCount = competitors.filter(p => {
         if (!p.wca_id) return true;
         return p.wca_id.substring(0, 4) === compYear;
@@ -128,25 +226,19 @@ async function fetchYearData(env, year) {
         newcomerCount
       });
 
-      for (const person of competitors) {
-        if (person.wca_id && !allCompetitors.has(person.wca_id)) {
-          allCompetitors.set(person.wca_id, person);
-        }
+      if (isFinal) {
+        await saveCompetitionCache(env, comp, competitors.length, newcomerCount, true);
+        subrequestBudget.used += 2;
       }
     } catch (err) {
       competitionsWithCounts.push({
         ...comp,
-        competitorCount: 0,
+        competitorCount: cached?.competitor_count || 0,
+        newcomerCount: cached?.newcomer_count || 0,
         error: true
       });
     }
   }
-
-  const uniqueCompetitors = Array.from(allCompetitors.values());
-  const males = uniqueCompetitors.filter(p => p.gender === 'm').length;
-  const females = uniqueCompetitors.filter(p => p.gender === 'f').length;
-  const other = uniqueCompetitors.length - males - females;
-  const newcomers = uniqueCompetitors.filter(p => p.wca_id?.substring(0, 4) === String(year)).length;
 
   const competitionsByMonth = {};
   for (const comp of competitions) {
@@ -160,15 +252,25 @@ async function fetchYearData(env, year) {
     count: competitionsByMonth[i] || 0
   }));
 
+  const totalCompetitors = competitionsWithCounts.reduce((sum, c) => sum + c.competitorCount, 0);
+  const newcomers = competitionsWithCounts.reduce((sum, c) => sum + (c.newcomerCount || 0), 0);
+  const deferredComps = competitionsWithCounts.filter(c => c.deferred).length;
+
   return {
-    totalCompetitors: uniqueCompetitors.length,
-    males,
-    females,
-    other,
+    totalCompetitors,
+    males: 0,
+    females: 0,
+    other: 0,
     newcomers,
     competitions: competitionsWithCounts,
     chartData,
-    cachedAt: new Date().toISOString()
+    cachedAt: new Date().toISOString(),
+    _meta: {
+      fromCache: skippedCount,
+      fetched: fetchedCount,
+      deferred: deferredComps,
+      subrequestsUsed: subrequestBudget.used
+    }
   };
 }
 
@@ -178,13 +280,23 @@ export default {
     const years = [currentYear - 1, currentYear];
     const results = [];
     const errors = [];
+    const subrequestBudget = { used: 0 };
 
     for (const year of years) {
       try {
-        const data = await fetchYearData(env, year);
+        const data = await fetchYearData(env, year, subrequestBudget);
         if (data) {
           await saveToPocketBase(env, year, data);
-          results.push(`${year}: ${data.competitions.length} zawodów, ${data.totalCompetitors} zawodników`);
+          subrequestBudget.used += 2;
+
+          const meta = data._meta;
+          let detail = `${year}: ${data.competitions.length} zawodów`;
+          if (meta) {
+            detail += ` (cache: ${meta.fromCache}, fetch: ${meta.fetched}`;
+            if (meta.deferred > 0) detail += `, odłożone: ${meta.deferred}`;
+            detail += `)`;
+          }
+          results.push(detail);
         } else {
           results.push(`${year}: brak danych`);
         }
@@ -192,6 +304,8 @@ export default {
         errors.push(`${year}: ${err.message}`);
       }
     }
+
+    results.push(`Subrequests: ${subrequestBudget.used}/${SUBREQUEST_BUDGET}`);
 
     const status = errors.length > 0 ? 'error' : 'ok';
     const message = [

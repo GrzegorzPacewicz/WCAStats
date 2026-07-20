@@ -322,6 +322,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/run') {
+      const key = url.searchParams.get('key');
+      if (!env.RUN_SECRET || key !== env.RUN_SECRET) {
+        return new Response('Unauthorized', { status: 401 });
+      }
       ctx.waitUntil(this.scheduled({}, env, ctx));
       return new Response('Prefetch started', { status: 200 });
     }

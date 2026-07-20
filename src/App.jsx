@@ -7,6 +7,7 @@ import Chart from './components/Chart';
 import PersonModal from './components/PersonModal';
 import ResultsModal from './components/ResultsModal';
 import StatsOverview from './components/StatsOverview';
+import AdminPanel from './components/AdminPanel';
 import { getCachedData } from './api/wca';
 
 function App() {
@@ -59,6 +60,16 @@ function App() {
           >
             Statystyki
           </button>
+          <button
+            onClick={() => setTab('admin')}
+            className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+              tab === 'admin'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Admin
+          </button>
         </div>
 
         {tab === 'year' && (
@@ -89,6 +100,8 @@ function App() {
         )}
 
         {tab === 'overview' && <StatsOverview />}
+
+        {tab === 'admin' && <AdminPanel />}
       </div>
 
       {selectedPerson && (

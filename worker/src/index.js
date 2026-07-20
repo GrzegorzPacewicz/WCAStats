@@ -322,12 +322,37 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/run') {
-      const key = url.searchParams.get('key');
-      if (!env.RUN_SECRET || key !== env.RUN_SECRET) {
-        return new Response('Unauthorized', { status: 401 });
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      };
+
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: corsHeaders });
       }
+
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response('Unauthorized - no token', { status: 401, headers: corsHeaders });
+      }
+
+      const token = authHeader.substring(7);
+      try {
+        const verifyRes = await fetch(`${env.POCKETBASE_URL}/api/collections/users/auth-refresh`, {
+          method: 'POST',
+          headers: { 'Authorization': token }
+        });
+        if (!verifyRes.ok) {
+          const text = await verifyRes.text();
+          return new Response(`Invalid token: ${verifyRes.status} ${text}`, { status: 401, headers: corsHeaders });
+        }
+      } catch (err) {
+        return new Response(`Auth error: ${err.message}`, { status: 401, headers: corsHeaders });
+      }
+
       ctx.waitUntil(this.scheduled({}, env, ctx));
-      return new Response('Prefetch started', { status: 200 });
+      return new Response('Prefetch started', { status: 200, headers: corsHeaders });
     }
 
     if (url.pathname === '/test-discord') {

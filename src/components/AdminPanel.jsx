@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import PocketBase from 'pocketbase';
+import { refreshRecentCompetitions, fetchAllData } from '../api/wca';
 
 const pb = new PocketBase('https://gp1.pecet.it');
-const WORKER_URL = 'https://wcastats-prefetch.g-pacewicz.workers.dev';
 
 export default function AdminPanel() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -10,9 +10,14 @@ export default function AdminPanel() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [refreshResult, setRefreshResult] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: currentYear - 2003 + 1 }, (_, i) => currentYear - i);
 
   useEffect(() => {
     if (pb.authStore.isValid) {
@@ -54,29 +59,74 @@ export default function AdminPanel() {
     setLogs([]);
   };
 
+  const logToPocketBase = async (status, message) => {
+    try {
+      await pb.collection('prefetch_logs').create({ status, message });
+    } catch (err) {
+      console.error('Failed to log:', err.message);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     setRefreshResult(null);
+    setProgress(null);
 
     try {
-      const token = pb.authStore.token;
-      const res = await fetch(`${WORKER_URL}/run`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const result = await refreshRecentCompetitions('PL', (p) => {
+        setProgress(p);
       });
 
-      if (res.ok) {
-        setRefreshResult({ success: true, message: 'Prefetch uruchomiony' });
-        setTimeout(fetchLogs, 5000);
-      } else {
-        const text = await res.text();
-        setRefreshResult({ success: false, message: `Błąd: ${res.status} ${text}` });
-      }
+      const message = `Pobrano: ${result.updated}, z cache: ${result.skipped}`;
+      await logToPocketBase('ok', message);
+      await fetchLogs();
+
+      setRefreshResult({
+        success: true,
+        message: `Zakończono!\n${message}`
+      });
     } catch (err) {
-      setRefreshResult({ success: false, message: `Błąd: ${err.message}` });
+      const message = `Błąd: ${err.message}`;
+      await logToPocketBase('error', message);
+      await fetchLogs();
+
+      setRefreshResult({ success: false, message });
     } finally {
       setRefreshing(false);
+      setProgress(null);
+    }
+  };
+
+  const handleRefreshYear = async () => {
+    if (!selectedYear) return;
+
+    setRefreshing(true);
+    setRefreshResult(null);
+    setProgress(null);
+
+    try {
+      const data = await fetchAllData('PL', selectedYear, (p) => {
+        setProgress(p);
+      }, true);
+
+      const message = `Rok ${selectedYear}: ${data.competitions.length} zawodów, ${data.totalCompetitors} zawodników`;
+      await logToPocketBase('ok', message);
+      await fetchLogs();
+
+      setRefreshResult({
+        success: true,
+        message: `Zakończono!\n${message}`
+      });
+    } catch (err) {
+      const message = `Błąd ${selectedYear}: ${err.message}`;
+      await logToPocketBase('error', message);
+      await fetchLogs();
+
+      setRefreshResult({ success: false, message });
+    } finally {
+      setRefreshing(false);
+      setProgress(null);
+      setSelectedYear(null);
     }
   };
 
@@ -135,16 +185,65 @@ export default function AdminPanel() {
         </div>
 
         <div className="space-y-4">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {refreshing ? 'Odświeżanie...' : 'Odśwież cache'}
-          </button>
+          <div>
+            <p className="text-sm text-gray-600 mb-2">
+              Odświeża zawody z ostatnich 4 tygodni oraz wszystkie przyszłe zawody.
+            </p>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {refreshing ? 'Odświeżanie...' : 'Odśwież aktualne zawody'}
+            </button>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4">
+            <p className="text-sm text-gray-600 mb-2">
+              Pełne odświeżenie wybranego roku (wszystkie zawody):
+            </p>
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedYear || ''}
+                onChange={(e) => setSelectedYear(e.target.value ? parseInt(e.target.value) : null)}
+                disabled={refreshing}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Wybierz rok...</option>
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleRefreshYear}
+                disabled={refreshing || !selectedYear}
+                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+              >
+                Pobierz rok
+              </button>
+            </div>
+          </div>
+
+          {progress && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="flex justify-between text-sm text-blue-800 mb-1">
+                <span>{progress.current}/{progress.total}</span>
+                {progress.total > 0 && <span>{Math.round((progress.current / progress.total) * 100)}%</span>}
+              </div>
+              {progress.total > 0 && (
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  />
+                </div>
+              )}
+              <div className="text-xs text-blue-600 mt-1 truncate">{progress.name}</div>
+            </div>
+          )}
 
           {refreshResult && (
-            <div className={`p-3 rounded-lg ${refreshResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            <div className={`p-3 rounded-lg whitespace-pre-wrap ${refreshResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
               {refreshResult.message}
             </div>
           )}

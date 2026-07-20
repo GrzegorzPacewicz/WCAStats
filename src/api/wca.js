@@ -32,6 +32,35 @@ export async function fetchCompetitions(countryIso2, year) {
   return Array.from(competitionsMap.values());
 }
 
+export async function fetchCompetitionsByDateRange(countryIso2, startDate, endDate) {
+  const competitionsMap = new Map();
+  let page = 1;
+
+  while (true) {
+    const url = `${BASE_URL}/competitions?country_iso2=${countryIso2}&start=${startDate}&end=${endDate}&page=${page}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch competitions: ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    if (data.length === 0) break;
+
+    for (const comp of data) {
+      if (!competitionsMap.has(comp.id)) {
+        competitionsMap.set(comp.id, comp);
+      }
+    }
+
+    if (data.length < 25) break;
+    page++;
+  }
+
+  return Array.from(competitionsMap.values());
+}
+
 export async function fetchCompetitors(competitionId) {
   const url = `${BASE_URL}/competitions/${competitionId}/competitors`;
   const res = await fetch(url);
@@ -312,4 +341,145 @@ export async function fetchAllData(countryIso2, year, onProgress, forceRefresh =
   setPocketBaseCache(countryIso2, year, result);
 
   return result;
+}
+
+export async function refreshRecentCompetitions(countryIso2, onProgress) {
+  const now = new Date();
+  const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+  const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  const startDate = fourWeeksAgo.toISOString().split('T')[0];
+  const endDate = oneYearFromNow.toISOString().split('T')[0];
+
+  const competitions = await fetchCompetitionsByDateRange(countryIso2, startDate, endDate);
+
+  if (competitions.length === 0) {
+    return { updated: 0, skipped: 0 };
+  }
+
+  const competitionsByYear = {};
+  for (const comp of competitions) {
+    const year = parseInt(comp.start_date.substring(0, 4));
+    if (!competitionsByYear[year]) {
+      competitionsByYear[year] = [];
+    }
+    competitionsByYear[year].push(comp);
+  }
+
+  let fetchedCount = 0;
+  let skippedCount = 0;
+  let totalProcessed = 0;
+
+  for (const [year, comps] of Object.entries(competitionsByYear)) {
+    const yearNum = parseInt(year);
+
+    let existingData = await getCachedData(countryIso2, yearNum);
+    if (!existingData) {
+      existingData = {
+        totalCompetitors: 0,
+        males: 0,
+        females: 0,
+        other: 0,
+        newcomers: 0,
+        competitions: [],
+        chartData: [],
+        cachedAt: null
+      };
+    }
+
+    const existingCompsMap = new Map(
+      existingData.competitions.map(c => [c.id, c])
+    );
+
+    let yearModified = false;
+
+    for (let i = 0; i < comps.length; i++) {
+      const comp = comps[i];
+      totalProcessed++;
+
+      const compEndDate = new Date(comp.end_date);
+      const isOldAndCached = compEndDate < twoWeeksAgo && existingCompsMap.has(comp.id) && existingCompsMap.get(comp.id).competitorCount > 0;
+
+      if (onProgress) {
+        onProgress({
+          current: totalProcessed,
+          total: competitions.length,
+          name: isOldAndCached ? `${comp.name} (cache)` : comp.name
+        });
+      }
+
+      if (isOldAndCached) {
+        skippedCount++;
+        continue;
+      }
+
+      try {
+        const competitors = await fetchCompetitors(comp.id);
+        const compYear = comp.start_date.substring(0, 4);
+
+        const newcomerCount = competitors.filter(p => {
+          if (!p.wca_id) return true;
+          return p.wca_id.substring(0, 4) === compYear;
+        }).length;
+
+        existingCompsMap.set(comp.id, {
+          ...comp,
+          competitorCount: competitors.length,
+          newcomerCount
+        });
+        fetchedCount++;
+        yearModified = true;
+      } catch (err) {
+        console.warn(`Skipping ${comp.id}: ${err.message}`);
+        if (!existingCompsMap.has(comp.id)) {
+          existingCompsMap.set(comp.id, {
+            ...comp,
+            competitorCount: 0,
+            newcomerCount: 0,
+            error: true
+          });
+          yearModified = true;
+        }
+      }
+    }
+
+    if (!yearModified) {
+      continue;
+    }
+
+    const updatedCompetitions = Array.from(existingCompsMap.values())
+      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+    const totalCompetitors = updatedCompetitions.reduce((sum, c) => sum + (c.competitorCount || 0), 0);
+    const newcomers = updatedCompetitions.reduce((sum, c) => sum + (c.newcomerCount || 0), 0);
+
+    const competitionsByMonth = {};
+    for (const comp of updatedCompetitions) {
+      const month = new Date(comp.start_date).getMonth();
+      competitionsByMonth[month] = (competitionsByMonth[month] || 0) + 1;
+    }
+
+    const monthNames = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+    const chartData = monthNames.map((name, idx) => ({
+      name,
+      count: competitionsByMonth[idx] || 0
+    }));
+
+    const result = {
+      totalCompetitors,
+      males: existingData.males,
+      females: existingData.females,
+      other: existingData.other,
+      newcomers,
+      competitions: updatedCompetitions,
+      chartData,
+      cachedAt: new Date().toISOString()
+    };
+
+    await setPocketBaseCache(countryIso2, yearNum, result);
+    setLocalCache(countryIso2, yearNum, result);
+  }
+
+  return { updated: fetchedCount, skipped: skippedCount };
 }

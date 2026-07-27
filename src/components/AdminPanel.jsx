@@ -4,7 +4,7 @@ import { refreshRecentCompetitions, fetchAllData } from '../api/wca';
 
 const pb = new PocketBase('https://gp1.pecet.it');
 
-export default function AdminPanel() {
+export default function AdminPanel({ onDataRefreshed }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,6 +85,7 @@ export default function AdminPanel() {
         success: true,
         message: `Zakończono!\n${message}`
       });
+      onDataRefreshed?.();
     } catch (err) {
       const message = `Błąd: ${err.message}`;
       await logToPocketBase('error', message);
@@ -117,6 +118,7 @@ export default function AdminPanel() {
         success: true,
         message: `Zakończono!\n${message}`
       });
+      onDataRefreshed?.();
     } catch (err) {
       const message = `Błąd ${selectedYear}: ${err.message}`;
       await logToPocketBase('error', message);

@@ -111,7 +111,14 @@ function App() {
 
         {tab === 'overview' && <StatsOverview />}
 
-        {tab === 'admin' && <AdminPanel />}
+        {tab === 'admin' && (
+          <AdminPanel
+            onDataRefreshed={() => {
+              getCachedData(country, year).then(setData);
+              getLastUpdateTime('PL').then(setLastUpdate);
+            }}
+          />
+        )}
       </div>
 
       {selectedPerson && (

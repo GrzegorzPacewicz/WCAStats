@@ -267,6 +267,8 @@ export async function fetchAllYearsData(countryIso2) {
   };
 }
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function fetchAllData(countryIso2, year, onProgress, forceRefresh = false) {
   if (!forceRefresh) {
     const cached = await getCachedData(countryIso2, year);
@@ -286,6 +288,7 @@ export async function fetchAllData(countryIso2, year, onProgress, forceRefresh =
     }
 
     try {
+      await sleep(300);
       const competitors = await fetchCompetitors(comp.id);
       const compYear = comp.start_date.substring(0, 4);
 
@@ -427,6 +430,7 @@ export async function refreshRecentCompetitions(countryIso2, onProgress) {
       }
 
       try {
+        await sleep(300);
         const competitors = await fetchCompetitors(comp.id);
         const compYear = comp.start_date.substring(0, 4);
 

@@ -18,6 +18,15 @@ function App() {
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [showAdmin, setShowAdmin] = useState(window.location.hash === '#admin');
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setShowAdmin(window.location.hash === '#admin');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     getLastUpdateTime('PL').then(setLastUpdate);
@@ -70,16 +79,18 @@ function App() {
           >
             Statystyki
           </button>
-          <button
-            onClick={() => setTab('admin')}
-            className={`px-4 py-2 font-medium rounded-lg transition-colors ${
-              tab === 'admin'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Admin
-          </button>
+          {showAdmin && (
+            <button
+              onClick={() => setTab('admin')}
+              className={`px-4 py-2 font-medium rounded-lg transition-colors ${
+                tab === 'admin'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Admin
+            </button>
+          )}
         </div>
 
         {tab === 'year' && (
@@ -95,7 +106,7 @@ function App() {
               <div className="space-y-6">
                 {data.cachedAt && (
                   <div className="text-xs text-gray-500 text-right">
-                    Dane z cache: {new Date(data.cachedAt).toLocaleString('pl-PL')}
+                    Dane aktualne na: {new Date(data.cachedAt).toLocaleString('pl-PL')}
                   </div>
                 )}
                 <StatsSummary data={data} />

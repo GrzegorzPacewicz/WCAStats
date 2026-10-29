@@ -1,14 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import CountryPicker from './components/CountryPicker';
 import YearPicker from './components/YearPicker';
 import StatsSummary from './components/StatsSummary';
 import CompetitionList from './components/CompetitionList';
-import Chart from './components/Chart';
-import PersonModal from './components/PersonModal';
-import ResultsModal from './components/ResultsModal';
-import StatsOverview from './components/StatsOverview';
-import AdminPanel from './components/AdminPanel';
 import { getCachedData, getLastUpdateTime } from './api/wca';
+
+// Lazy-loaded to keep recharts (~400 kB) out of the initial bundle
+const Chart = lazy(() => import('./components/Chart'));
+const PersonModal = lazy(() => import('./components/PersonModal'));
+const ResultsModal = lazy(() => import('./components/ResultsModal'));
+const StatsOverview = lazy(() => import('./components/StatsOverview'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+
+const Loading = () => (
+  <div className="text-center text-gray-400 text-sm py-8">Ładowanie…</div>
+);
 
 function App() {
   const [tab, setTab] = useState('year');
@@ -110,7 +116,9 @@ function App() {
                   </div>
                 )}
                 <StatsSummary data={data} />
-                <Chart data={data.chartData} />
+                <Suspense fallback={<Loading />}>
+                  <Chart data={data.chartData} />
+                </Suspense>
                 <CompetitionList
                   competitions={data.competitions}
                   onCompetitionClick={setSelectedCompetition}
@@ -120,33 +128,43 @@ function App() {
           </>
         )}
 
-        {tab === 'overview' && <StatsOverview />}
+        {tab === 'overview' && (
+          <Suspense fallback={<Loading />}>
+            <StatsOverview />
+          </Suspense>
+        )}
 
         {tab === 'admin' && (
-          <AdminPanel
-            onDataRefreshed={() => {
-              getCachedData(country, year).then(setData);
-              getLastUpdateTime('PL').then(setLastUpdate);
-            }}
-          />
+          <Suspense fallback={<Loading />}>
+            <AdminPanel
+              onDataRefreshed={() => {
+                getCachedData(country, year).then(setData);
+                getLastUpdateTime('PL').then(setLastUpdate);
+              }}
+            />
+          </Suspense>
         )}
       </div>
 
       {selectedPerson && (
-        <PersonModal
-          wcaId={selectedPerson}
-          onClose={() => setSelectedPerson(null)}
-        />
+        <Suspense fallback={null}>
+          <PersonModal
+            wcaId={selectedPerson}
+            onClose={() => setSelectedPerson(null)}
+          />
+        </Suspense>
       )}
 
       {selectedCompetition && (
-        <ResultsModal
-          competition={selectedCompetition}
-          onClose={() => setSelectedCompetition(null)}
-          onPersonClick={(wcaId) => {
-            setSelectedPerson(wcaId);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ResultsModal
+            competition={selectedCompetition}
+            onClose={() => setSelectedCompetition(null)}
+            onPersonClick={(wcaId) => {
+              setSelectedPerson(wcaId);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

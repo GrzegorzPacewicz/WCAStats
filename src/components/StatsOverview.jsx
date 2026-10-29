@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart } from 'recharts';
+import { LineChart, Line, BarChart, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart } from 'recharts';
 import { fetchAllYearsData } from '../api/wca';
+import { TOOLTIP_CONTENT_STYLE, TOOLTIP_LABEL_STYLE } from './chartStyles';
 
 const EVENT_NAMES = {
   '333': '3x3x3',
@@ -47,6 +48,23 @@ const EVENT_COLORS = {
 };
 
 const DEFAULT_VISIBLE_EVENTS = ['333', '222', '444', 'pyram', '333oh'];
+
+const HISTORIC_EVENTS = ['333ft', '333mbo', 'magic', 'mmagic'];
+
+function LifecycleTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  const [first, last] = p.range;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+      <div className="font-medium text-gray-900">{p.name}</div>
+      <div className="text-sm text-gray-600">
+        {first === last ? first : `${first}–${last}`}
+        {' '}({last - first + 1} {last - first === 0 ? 'rok' : 'lat'})
+      </div>
+    </div>
+  );
+}
 
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
@@ -148,6 +166,15 @@ export default function StatsOverview() {
   }
 
   if (!stats) return null;
+
+  const minYear = stats.yearlyTrend[0]?.year;
+  const maxYear = stats.yearlyTrend[stats.yearlyTrend.length - 1]?.year;
+
+  // Drop event ids we can't name (stray/invalid ids in the source data, e.g. "ft")
+  const knownTopEvents = stats.topEvents.filter(e => EVENT_NAMES[e.event]);
+  const lifecycleData = stats.eventLifecycle
+    .filter(e => EVENT_NAMES[e.event])
+    .map(e => ({ name: EVENT_NAMES[e.event], range: [e.first, e.last], event: e.event }));
 
   return (
     <div className="space-y-6">
@@ -280,14 +307,9 @@ export default function StatsOverview() {
               <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
               <Tooltip
                 cursor={false}
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: 'none',
-                }}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
                 itemStyle={{ color: '#8b5cf6' }}
-                labelStyle={{ color: '#111827', fontWeight: 500 }}
+                labelStyle={TOOLTIP_LABEL_STYLE}
               />
               <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Zawody" />
             </BarChart>
@@ -300,28 +322,23 @@ export default function StatsOverview() {
         <h2 className="font-semibold text-gray-900 mb-4">Popularność konkurencji</h2>
         <div className="h-[500px] [&_svg]:outline-none [&_*]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.topEvents.map(e => ({
+            <BarChart data={knownTopEvents.map(e => ({
                 ...e,
-                name: EVENT_NAMES[e.event] || e.event,
-                fill: ['333ft', '333mbo', 'magic', 'mmagic'].includes(e.event) ? '#a16207' : '#3b82f6'
+                name: EVENT_NAMES[e.event],
+                fill: HISTORIC_EVENTS.includes(e.event) ? '#a16207' : '#3b82f6'
               }))} layout="vertical" margin={{ left: 0, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 12 }} />
               <YAxis dataKey="name" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={80} />
               <Tooltip
                 cursor={false}
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: 'none',
-                }}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
                 itemStyle={{ color: '#f59e0b' }}
-                labelStyle={{ color: '#111827', fontWeight: 500 }}
+                labelStyle={TOOLTIP_LABEL_STYLE}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Zawody">
-                {stats.topEvents.map((entry, index) => {
-                  const isHistoric = ['333ft', '333mbo', 'magic', 'mmagic'].includes(entry.event);
+                {knownTopEvents.map((entry, index) => {
+                  const isHistoric = HISTORIC_EVENTS.includes(entry.event);
                   return <Cell key={`cell-${index}`} fill={isHistoric ? '#d97706' : '#3b82f6'} />;
                 })}
               </Bar>
@@ -367,13 +384,9 @@ export default function StatsOverview() {
               />
               <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={40} />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: 'none',
-                }}
-                labelStyle={{ color: '#111827', fontWeight: 500 }}
+                cursor={false}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
               />
               {visibleEvents.map(eventId => (
                 <Line
@@ -392,6 +405,137 @@ export default function StatsOverview() {
         </div>
       </div>
 
+      {/* Event lifecycle */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Cykl życia konkurencji</h2>
+        <p className="text-xs text-gray-500 mb-4">Pierwszy i ostatni rok, w którym dana konkurencja była rozgrywana</p>
+        <div className="h-[520px] [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={lifecycleData}
+              layout="vertical"
+              margin={{ left: 0, right: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                type="number"
+                domain={[minYear, maxYear]}
+                allowDecimals={false}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+              />
+              <YAxis dataKey="name" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={80} />
+              <Tooltip content={<LifecycleTooltip />} cursor={false} />
+              <Bar dataKey="range" radius={[4, 4, 4, 4]} minPointSize={3}>
+                {lifecycleData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={HISTORIC_EVENTS.includes(entry.event) ? '#d97706' : '#3b82f6'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-xs text-gray-500 mt-2"><span className="inline-block w-2 h-2 rounded-full bg-amber-600 align-middle mr-1"></span> konkurencje historyczne (już nierozgrywane)</p>
+      </div>
+
+      {/* Newcomers vs returning */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Debiutanci vs powracający zawodnicy</h2>
+        <div className="h-72 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stats.yearlyTrend} margin={{ left: 0, right: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={40} />
+              <Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+              <Bar dataKey="returning" stackId="a" fill="#6366f1" name="Powracający" />
+              <Bar dataKey="newcomers" stackId="a" fill="#10b981" name="Debiutanci" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-center gap-6 mt-2 text-sm">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-indigo-500"></span>
+            Powracający
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-green-500"></span>
+            Debiutanci
+          </span>
+        </div>
+      </div>
+
+      {/* Average competition size and events */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Średnia wielkość zawodów i liczba konkurencji</h2>
+        <div className="h-72 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.yearlyTrend} margin={{ left: 0, right: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis yAxisId="left" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+              <Line yAxisId="left" type="monotone" dataKey="avgSize" stroke="#3b82f6" strokeWidth={2} name="Śr. uczestników" dot={{ r: 3 }} />
+              <Line yAxisId="right" type="monotone" dataKey="avgEvents" stroke="#f59e0b" strokeWidth={2} name="Śr. konkurencji" dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-center gap-6 mt-2 text-sm">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+            Śr. uczestników na zawodach
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+            Śr. liczba konkurencji
+          </span>
+        </div>
+      </div>
+
+      {/* Competition size distribution */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Rozkład wielkości zawodów</h2>
+        <p className="text-xs text-gray-500 mb-4">Liczba zawodów wg liczby uczestników</p>
+        <div className="h-64 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stats.sizeDistribution} margin={{ left: 0, right: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
+              <Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={{ color: '#8b5cf6' }} labelStyle={TOOLTIP_LABEL_STYLE} />
+              <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Zawody" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Geographic growth */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+        <h2 className="font-semibold text-gray-900 mb-4">Rozrost geograficzny</h2>
+        <p className="text-xs text-gray-500 mb-4">Miasta z zawodami łącznie (narastająco) oraz nowe miasta w danym roku</p>
+        <div className="h-72 [&_svg]:outline-none [&_*]:outline-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={stats.cityGrowth} margin={{ left: 0, right: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="year" tick={{ fill: '#6b7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} />
+              <Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+              <Area type="monotone" dataKey="totalCities" stroke="#059669" fill="#a7f3d0" strokeWidth={2} name="Miasta łącznie" />
+              <Bar dataKey="newCities" fill="#047857" radius={[4, 4, 0, 0]} name="Nowe miasta" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-center gap-6 mt-2 text-sm">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-200 border border-emerald-500"></span>
+            Miasta łącznie (narastająco)
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-700"></span>
+            Nowe miasta w roku
+          </span>
+        </div>
+      </div>
+
       {/* Top cities */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
         <h2 className="font-semibold text-gray-900 mb-4">Miasta z największą liczbą zawodów</h2>
@@ -406,14 +550,9 @@ export default function StatsOverview() {
               <YAxis dataKey="city" type="category" tick={{ fill: '#6b7280', fontSize: 11 }} width={85} />
               <Tooltip
                 cursor={false}
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: 'none',
-                }}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
                 itemStyle={{ color: '#059669' }}
-                labelStyle={{ color: '#111827', fontWeight: 500 }}
+                labelStyle={TOOLTIP_LABEL_STYLE}
               />
               <Bar dataKey="count" fill="#059669" radius={[0, 4, 4, 0]} name="Zawody" />
             </BarChart>

@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE, TOOLTIP_LABEL_STYLE } from './chartStyles';
 
 export default function Chart({ data }) {
   if (!data || data.length === 0) return null;
@@ -14,14 +15,9 @@ export default function Chart({ data }) {
             <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} allowDecimals={false} domain={[0, 'auto']} />
             <Tooltip
               cursor={false}
-              contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                boxShadow: 'none',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               itemStyle={{ color: '#3b82f6' }}
-              labelStyle={{ color: '#111827', fontWeight: 500 }}
+              labelStyle={TOOLTIP_LABEL_STYLE}
             />
             <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
           </BarChart>

@@ -171,6 +171,8 @@ export async function fetchAllYearsData(countryIso2) {
   const cityCounts = {};
   const eventCounts = {};
   const eventsByYear = {};
+  const seenCities = new Set();
+  const cityGrowth = [];
 
   for (const record of records) {
     const data = record.data;
@@ -181,18 +183,35 @@ export async function fetchAllYearsData(countryIso2) {
     totalMales += data.males || 0;
     totalFemales += data.females || 0;
 
+    let yearCompetitorSum = 0;
+    let yearCompsWithCount = 0;
+    let yearEventSum = 0;
+    let yearCompsWithEvents = 0;
+    let yearNewCities = 0;
+
     for (const comp of data.competitions) {
       totalParticipations += comp.competitorCount || 0;
       allCompetitions.push({ ...comp, year });
+
+      if (comp.competitorCount > 0) {
+        yearCompetitorSum += comp.competitorCount;
+        yearCompsWithCount++;
+      }
 
       const month = new Date(comp.start_date).getMonth();
       monthCounts[month]++;
 
       if (comp.city) {
         cityCounts[comp.city] = (cityCounts[comp.city] || 0) + 1;
+        if (!seenCities.has(comp.city)) {
+          seenCities.add(comp.city);
+          yearNewCities++;
+        }
       }
 
       if (comp.event_ids) {
+        yearEventSum += comp.event_ids.length;
+        yearCompsWithEvents++;
         for (const eventId of comp.event_ids) {
           eventCounts[eventId] = (eventCounts[eventId] || 0) + 1;
           if (!eventsByYear[year]) eventsByYear[year] = {};
@@ -201,11 +220,16 @@ export async function fetchAllYearsData(countryIso2) {
       }
     }
 
+    cityGrowth.push({ year, newCities: yearNewCities, totalCities: seenCities.size });
+
     yearlyTrend.push({
       year,
       competitions: data.competitions.length,
       newcomers: data.newcomers,
       competitors: data.totalCompetitors,
+      returning: Math.max(0, data.totalCompetitors - data.newcomers),
+      avgSize: yearCompsWithCount > 0 ? Math.round(yearCompetitorSum / yearCompsWithCount) : 0,
+      avgEvents: yearCompsWithEvents > 0 ? +(yearEventSum / yearCompsWithEvents).toFixed(1) : 0,
       males: data.males || 0,
       females: data.females || 0,
     });
@@ -235,6 +259,33 @@ export async function fetchAllYearsData(countryIso2) {
     .map(([year, events]) => ({ year: parseInt(year), ...events }))
     .sort((a, b) => a.year - b.year);
 
+  // First and last year each event was held (event lifecycle)
+  const eventSpan = {};
+  for (const [year, events] of Object.entries(eventsByYear)) {
+    const y = parseInt(year);
+    for (const eventId of Object.keys(events)) {
+      if (!eventSpan[eventId]) eventSpan[eventId] = { first: y, last: y };
+      eventSpan[eventId].first = Math.min(eventSpan[eventId].first, y);
+      eventSpan[eventId].last = Math.max(eventSpan[eventId].last, y);
+    }
+  }
+  const eventLifecycle = Object.entries(eventSpan)
+    .map(([event, { first, last }]) => ({ event, first, last }))
+    .sort((a, b) => a.first - b.first || a.last - b.last);
+
+  // Histogram of competition sizes
+  const sizeBuckets = [
+    { name: '<50', min: 1, max: 49 },
+    { name: '50–99', min: 50, max: 99 },
+    { name: '100–149', min: 100, max: 149 },
+    { name: '150–199', min: 150, max: 199 },
+    { name: '200+', min: 200, max: Infinity },
+  ];
+  const sizeDistribution = sizeBuckets.map(b => ({
+    name: b.name,
+    count: allCompetitions.filter(c => c.competitorCount >= b.min && c.competitorCount <= b.max).length,
+  }));
+
   const mostCompetitionsYear = yearlyTrend.reduce((max, y) => y.competitions > max.count ? { year: y.year, count: y.competitions } : max, { year: 0, count: 0 });
   const mostNewcomersYear = yearlyTrend.reduce((max, y) => y.newcomers > max.count ? { year: y.year, count: y.newcomers } : max, { year: 0, count: 0 });
 
@@ -254,6 +305,9 @@ export async function fetchAllYearsData(countryIso2) {
     topCities,
     topEvents,
     eventTrends,
+    eventLifecycle,
+    sizeDistribution,
+    cityGrowth,
     records: {
       mostCompetitionsYear,
       mostNewcomersYear,

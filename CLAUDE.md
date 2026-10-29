@@ -17,8 +17,9 @@ src/
     Chart.jsx           - BarChart zawodow per miesiac
     PersonModal.jsx     - profil zawodnika (rekordy, medale)
     ResultsModal.jsx    - wyniki zawodow po eventach
-    StatsOverview.jsx   - zakladka Statystyki (trendy, plec, miasta, eventy)
-  App.jsx               - glowny komponent, state, modale, nawigacja tabs
+    StatsOverview.jsx   - zakladka Statystyki (trendy, plec, miasta, eventy, cykl zycia, retencja)
+    chartStyles.js      - wspolne style tooltipow recharts
+  App.jsx               - glowny komponent, state, modale, nawigacja tabs (lazy-loaded wykresy/modale)
 scripts/
   prefetch.js           - skrypt do ladowania danych do PocketBase
 ```
@@ -54,5 +55,4 @@ Dane PL 2003-2026 sa juz w cache.
 
 ## TODO
 
-- Trendy popularnosci konkurencji przez lata (eventTrends dane juz sa w API)
-- Mirror bazy WCA w PocketBase dla szczegolowych statystyk (top zawodnicy, retention, rekordy NR)
+- Mirror bazy WCA w PocketBase dla szczegolowych statystyk (top zawodnicy, retention per-osoba, rekordy NR) - wymaga zapisywania list wca_id per rok, nie tylko liczb
